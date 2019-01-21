@@ -1,0 +1,14 @@
+identifier: rapidiot_kw41z
+name: Rapid IoT KW41Z
+type: mcu
+arch: arm
+ram: 128
+flash: 512
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+testing:
+  ignore_tags:
+    - net
+

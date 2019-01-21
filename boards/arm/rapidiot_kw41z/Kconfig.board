@@ -1,0 +1,13 @@
+# Kconfig - Rapid IoT KW41Z board
+#
+# Copyright (c) 2017, NXP
+# Copyright (c) 2019, Marcio Montenegro
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config BOARD_RAPIDIOT_KW41Z
+	bool "Rapid IoT KW41Z"
+	depends on SOC_SERIES_KINETIS_KWX
+	select SOC_PART_NUMBER_MKW41Z512VHT4
+
