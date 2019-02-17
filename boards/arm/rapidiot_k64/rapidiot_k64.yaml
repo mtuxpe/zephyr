@@ -1,0 +1,16 @@
+identifier: rapidiot_k64
+name: Rapid IoT K64
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+supported:
+  - ble
+  - adc
+  - gpio
+  - i2c
+  - spi
+  - pwm
+  - watchdog
