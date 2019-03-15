@@ -74,8 +74,8 @@ struct configs conf = {
 struct pollfd fds[2];
 int nfds=0;
 static short event=0;
-// poll timeout in  seconds
-static int poll_timeout = (1 * 60 );
+// poll timeout in  miliseconds
+static int poll_timeout = (1 * 60 * 1000);
 
 
 extern int send_tcp_data(struct data *data);
@@ -109,7 +109,7 @@ static int wait_event( int timeout)
 	  /* Wait for event on any socket used. Once event occurs,
 	  * we'll check them all.
 	  */
-	  ret = (poll(fds, nfds, timeout) < 0);
+	  ret = poll(fds, nfds, timeout);
 	  if ( ret < 0 )
 		    LOG_ERR("Error in poll:%d", errno);
     else {
@@ -192,21 +192,22 @@ void main(void)
 reconnect:
 	  prepare_fds();
 
-	  if (IS_ENABLED(CONFIG_NET_TCP)  ) {
-		    ret = start_tcp();
-		    if (ret < 0) {
-			    goto quit;
-		    }
-	  }
-		// aqui
-		ret = wait_event(poll_timeout);
+		ret = wait_event(1000);
 		if ( ret < 0)
     {
 		    LOG_ERR("Poll error...");
 				while(1);
  		}
     if ( ret == 0)
-			LOG_INF( "timeout expired");
+			LOG_INF( "Config timeout expired");
+
+
+	  if (IS_ENABLED(CONFIG_NET_TCP)  ) {
+		    ret = start_tcp();
+		    if (ret < 0) {
+			    goto quit;
+		    }
+	  }
 
 	  while (true) {
 
@@ -217,9 +218,18 @@ reconnect:
 					    goto quit;
 					}
 		  }
+
+			ret = wait_event(5000);
+			if ( ret < 0)
+    	{
+		    	LOG_ERR("Poll error...");
+					while(1);
+ 			}
+    	if ( ret == 0)
+				LOG_INF( "TCP timeout expired");
+
 	//	  wait_event(5000); e aqui
-			if ( event )
-			{
+			if ( event ) {
 			    if (event & POLLIN)
               LOG_INF("Got event POLLIN");
 					else if ( event & POLLHUP)
