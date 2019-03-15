@@ -323,8 +323,10 @@ static int openthread_init(struct net_if *iface)
 {
 	struct openthread_context *ot_context = net_if_l2_data(iface);
 	otExtendedPanId xpanid;
+        otMasterKey masterkey;
 
 	net_bytes_from_str(xpanid.m8, 8, (char *)CONFIG_OPENTHREAD_XPANID);
+        net_bytes_from_str(masterkey.m8, 16, (char *)CONFIG_OPENTHREAD_MASTERKEY);
 
 	NET_DBG("openthread_init");
 
