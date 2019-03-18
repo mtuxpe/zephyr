@@ -109,22 +109,21 @@ static int wait_event( int timeout)
 	  /* Wait for event on any socket used. Once event occurs,
 	  * we'll check them all.
 	  */
-	  ret = poll(fds, nfds, timeout);
-	  if ( ret < 0 )
-		    LOG_ERR("Error in poll:%d", errno);
+	ret = poll(fds, nfds, timeout);
+	if ( ret < 0 )
+		LOG_ERR("Error in poll:%d", errno);
     else {
-		  event |= fds[0].revents;
-	    if(fds[0].revents & POLLIN) {
+	    event |= fds[0].revents;
+	    if(fds[0].revents & POLLIN)
 	        LOG_INF("Event IN");
-			} else if(fds[0].revents & POLLHUP)
-		      LOG_INF("Event HUP");
-		  else if(fds[0].revents & POLLOUT) {
-			    LOG_INF("Event OUT");
-			}
-			else if(fds[0].revents & POLLERR)
-		      LOG_INF("Event ERR");
-	  }
-	  return ret;
+		else if(fds[0].revents & POLLHUP)
+		    LOG_INF("Event HUP");
+		else if(fds[0].revents & POLLOUT)
+			LOG_INF("Event OUT");
+		else if(fds[0].revents & POLLERR)
+		    LOG_INF("Event ERR");
+	}
+	return ret;
 }
 
 static void wait(void)
@@ -134,12 +133,11 @@ static void wait(void)
 	 */
 	if (poll(fds, nfds, K_FOREVER) < 0)
 		LOG_ERR("Error in poll:%d", errno);
-  else
-	{
-		  event |= fds[0].revents;
+    else {
+		event |= fds[0].revents;
+/*
 	    if(fds[0].revents & POLLIN) {
 		      LOG_INF("Event IN");
- //         event |= POLLIN;
 		  } else if(fds[0].revents & POLLHUP)
 		      LOG_INF("Event HUP");
 		  else if(fds[0].revents & POLLOUT) {
@@ -147,8 +145,8 @@ static void wait(void)
 					event |= POLLOUT;
 			} else if(fds[0].revents & POLLERR) {
 		      LOG_INF("Event ERR");
-//					event |= POLLERR;
 			}
+*/
 	}
 
 // FIXME: Shutdown not implemented
@@ -181,76 +179,74 @@ void main(void)
     int ret;
     u32_t flags=0;
 
-	  init_app();
+	init_app();
 
     flags |= NET_CONFIG_NEED_IPV6;
-	  ret = net_config_init("echo",flags, K_SECONDS(20));
+	ret = net_config_init("echo",flags, K_SECONDS(10));
     if ( ret == 0)
-		    LOG_INF("Net config ok");
-		else
-		   LOG_ERR("Net config err...");
+		LOG_INF("Net config ok");
+	else
+		LOG_ERR("Net config err...");
 reconnect:
-	  prepare_fds();
+	prepare_fds();
 
-		ret = wait_event(1000);
-		if ( ret < 0)
-    {
-		    LOG_ERR("Poll error...");
-				while(1);
- 		}
+	ret = wait_event(1000);
+	if ( ret < 0) {
+		LOG_ERR("Poll error...");
+		while(1);
+ 	}
     if ( ret == 0)
-			LOG_INF( "Config timeout expired");
+		LOG_INF( "Config timeout expired");
 
+ //   ret = wait_event(1000);
 
-	  if (IS_ENABLED(CONFIG_NET_TCP)  ) {
-		    ret = start_tcp();
-		    if (ret < 0) {
-			    goto quit;
-		    }
-	  }
+	if (IS_ENABLED(CONFIG_NET_TCP) ) {
+		ret = start_tcp();
+		if (ret < 0) {
+			goto quit;
+		}
+	}
 
-	  while (true) {
+	while (true) {
 
-		  if (IS_ENABLED(CONFIG_NET_TCP) && (event&POLLIN) ) {
-			    event_off(POLLIN);
-					ret = process_tcp();
-					if (ret < 0) {
-					    goto quit;
-					}
-		  }
+	    if (IS_ENABLED(CONFIG_NET_TCP) && (event&POLLIN) ) {
+		    event_off(POLLIN);
+			ret = process_tcp();
+			if (ret < 0) {
+				goto quit;
+			}
+		}
 
-			ret = wait_event(5000);
-			if ( ret < 0)
-    	{
-		    	LOG_ERR("Poll error...");
-					while(1);
- 			}
+		ret = wait_event(5000);
+		if ( ret < 0) {
+		    LOG_ERR("Poll error...");
+			while(1);
+ 		}
     	if ( ret == 0)
 				LOG_INF( "TCP timeout expired");
 
-	//	  wait_event(5000); e aqui
-			if ( event ) {
-			    if (event & POLLIN)
+		if ( event ) {
+		    if (event & POLLIN)
               LOG_INF("Got event POLLIN");
-					else if ( event & POLLHUP)
-					    LOG_INF("Got event POLLHUP");
-					else if ( event & POLLOUT)
-					    LOG_INF("Got event POLLOUT");
-					else if (event & POLLERR)
-					    LOG_INF("Got event POLLERR");
+			else if ( event & POLLHUP)
+				LOG_INF("Got event POLLHUP");
+			else if ( event & POLLOUT)
+				LOG_INF("Got event POLLOUT");
+			else if (event & POLLERR)
+			    LOG_INF("Got event POLLERR");
 
-			}
+		}
 
-	  } // end true
+	} // end true
 
 quit:
-	  LOG_INF("Stopping...");
+	LOG_INF("Stopping...");
 
-	  if (IS_ENABLED(CONFIG_NET_TCP)) {
+	if (IS_ENABLED(CONFIG_NET_TCP)) {
 		  stop_tcp();
-	  }
+	}
     k_sleep(10000);
-	  LOG_INF("Reconnecting...");
-	  nfds = 0;
-	  goto reconnect;
+	LOG_INF("Reconnecting...");
+	nfds = 0;
+	goto reconnect;
 }
