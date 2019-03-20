@@ -22,8 +22,6 @@ LOG_MODULE_DECLARE(net_echo_client_sample, LOG_LEVEL_DBG);
 
 #define RECV_BUF_SIZE 128
 
-//static char buf[RECV_BUF_SIZE];
-
 static ssize_t sendall(int sock, const void *buf, size_t len)
 {
 	while (len) {
@@ -39,7 +37,7 @@ static ssize_t sendall(int sock, const void *buf, size_t len)
 	return 0;
 }
 
-int send_tcp_data(struct data *data)
+static int send_tcp_data(struct data *data)
 {
 	int ret;
 
@@ -82,13 +80,38 @@ static int start_tcp_proto(struct data *data, struct sockaddr *addr,
 {
 	int ret;
 
+#if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
+	data->tcp.sock = socket(addr->sa_family, SOCK_STREAM, IPPROTO_TLS_1_2);
+#else
 	data->tcp.sock = socket(addr->sa_family, SOCK_STREAM, IPPROTO_TCP);
-
+#endif
 	if (data->tcp.sock < 0) {
 		LOG_ERR("Failed to create TCP socket (%s): %d", data->proto,
 			errno);
 		return -errno;
 	}
+
+#if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
+	sec_tag_t sec_tag_list[] = {
+		CA_CERTIFICATE_TAG,
+	};
+
+	ret = setsockopt(data->tcp.sock, SOL_TLS, TLS_SEC_TAG_LIST,
+			 sec_tag_list, sizeof(sec_tag_list));
+	if (ret < 0) {
+		LOG_ERR("Failed to set TLS_SEC_TAG_LIST option (%s): %d",
+			data->proto, errno);
+		ret = -errno;
+	}
+
+	ret = setsockopt(data->tcp.sock, SOL_TLS, TLS_HOSTNAME,
+			 TLS_PEER_HOSTNAME, sizeof(TLS_PEER_HOSTNAME));
+	if (ret < 0) {
+		LOG_ERR("Failed to set TLS_HOSTNAME option (%s): %d",
+			data->proto, errno);
+		ret = -errno;
+	}
+#endif
 
 	ret = connect(data->tcp.sock, addr, addrlen);
 	if (ret < 0) {
@@ -141,10 +164,9 @@ static int process_tcp_proto(struct data *data)
 			LOG_INF("%s TCP: Exchanged %u packets", data->proto,
 				data->tcp.counter);
 		}
-
         k_sleep(1000);
-	    ret = send_tcp_data(data);
-	    break;
+		ret = send_tcp_data(data);
+		break;
 	} while (received > 0);
 
 	return ret;
@@ -153,16 +175,16 @@ static int process_tcp_proto(struct data *data)
 int start_tcp(void)
 {
 	int ret = 0;
+	struct sockaddr_in addr4;
 	struct sockaddr_in6 addr6;
-
-    LOG_INF("Call start tcp proto");
 
 	if (IS_ENABLED(CONFIG_NET_IPV6)) {
 		addr6.sin6_family = AF_INET6;
 		addr6.sin6_port = htons(PEER_PORT);
-		inet_pton(AF_INET6, CONFIG_NET_CONFIG_PEER_IPV6_ADDR,
+		ret = inet_pton(AF_INET6, CONFIG_NET_CONFIG_PEER_IPV6_ADDR,
 			  &addr6.sin6_addr);
-
+        if ( ret <= 0)
+		    return -EFAULT;
 		ret = start_tcp_proto(&conf.ipv6, (struct sockaddr *)&addr6,
 				      sizeof(addr6));
 		if (ret < 0) {
@@ -170,7 +192,18 @@ int start_tcp(void)
 		}
 	}
 
-    LOG_INF("Call send TCP data");
+//	if (IS_ENABLED(CONFIG_NET_IPV4)) {
+//		addr4.sin_family = AF_INET;
+//		addr4.sin_port = htons(PEER_PORT);
+//		inet_pton(AF_INET, CONFIG_NET_CONFIG_PEER_IPV4_ADDR,
+//			  &addr4.sin_addr);
+//
+//		ret = start_tcp_proto(&conf.ipv4, (struct sockaddr *)&addr4,
+//				      sizeof(addr4));
+//		if (ret < 0) {
+//			return ret;
+//		}
+//	}
 
 	if (IS_ENABLED(CONFIG_NET_IPV6)) {
 		ret = send_tcp_data(&conf.ipv6);
@@ -178,6 +211,10 @@ int start_tcp(void)
 			return ret;
 		}
 	}
+
+//	if (IS_ENABLED(CONFIG_NET_IPV4)) {
+//		ret = send_tcp_data(&conf.ipv4);
+//	}
 
 	return ret;
 }
@@ -193,6 +230,13 @@ int process_tcp(void)
 		}
 	}
 
+//	if (IS_ENABLED(CONFIG_NET_IPV4)) {
+//		ret = process_tcp_proto(&conf.ipv4);
+//		if (ret < 0) {
+//			return ret;
+//		}
+//	}
+
 	return ret;
 }
 
@@ -201,9 +245,12 @@ void stop_tcp(void)
 	if (IS_ENABLED(CONFIG_NET_IPV6)) {
 		if (conf.ipv6.tcp.sock >= 0) {
 			(void)close(conf.ipv6.tcp.sock);
-		} else {
-		   LOG_INF("Close err %x",conf.ipv6.tcp.sock );
 		}
 	}
 
+	if (IS_ENABLED(CONFIG_NET_IPV4)) {
+		if (conf.ipv4.tcp.sock >= 0) {
+			(void)close(conf.ipv4.tcp.sock);
+		}
+	}
 }
