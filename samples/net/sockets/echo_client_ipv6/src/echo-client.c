@@ -25,11 +25,9 @@ LOG_MODULE_REGISTER(net_echo_client_sample, LOG_LEVEL_DBG);
 #include <stdio.h>
 
 #include <net/socket.h>
-#include <net/tls_credentials.h>
 #include <net/net_config.h>
 
 #include "common.h"
-#include "ca_certificate.h"
 
 #define APP_BANNER "Run echo client"
 
@@ -63,7 +61,11 @@ const char lorem_ipsum[] =
 const int ipsum_len = sizeof(lorem_ipsum) - 1;
 
 struct configs conf = {
-
+	.ipv4 = {
+		.proto = "IPv4",
+		.udp.sock = INVALID_SOCK,
+		.tcp.sock = INVALID_SOCK,
+	},
 	.ipv6 = {
 		.proto = "IPv6",
 		.udp.sock = INVALID_SOCK,
@@ -71,36 +73,37 @@ struct configs conf = {
 	},
 };
 
-struct pollfd fds[2];
-int nfds=0;
-static short event=0;
-// poll timeout in  miliseconds
-static int poll_timeout = (1 * 60 * 1000);
+struct pollfd fds[4];
+int nfds;
+static volatile bool in_process = false;
 
-
-extern int send_tcp_data(struct data *data);
 
 static void prepare_fds(void)
 {
+	nfds = 0;
+	if (conf.ipv4.udp.sock >= 0) {
+		fds[nfds].fd = conf.ipv4.udp.sock;
+		fds[nfds].events = POLLIN;
+		nfds++;
+	}
 
-//	if (conf.ipv6.udp.sock >= 0) {
-//		fds[nfds].fd = conf.ipv6.udp.sock;
-//		fds[nfds].events = POLLIN;
-//		nfds++;
-//	}
+	if (conf.ipv4.tcp.sock >= 0) {
+		fds[nfds].fd = conf.ipv4.tcp.sock;
+		fds[nfds].events = POLLIN;
+		nfds++;
+	}
 
-    if (conf.ipv6.tcp.sock >= 0) {
-	      fds[nfds].fd = conf.ipv6.tcp.sock;
-		    fds[nfds].events = POLLIN|POLLHUP|POLLOUT|POLLERR;
-		    nfds++;
-	  }
-		event = 0;
-}
+	if (conf.ipv6.udp.sock >= 0) {
+		fds[nfds].fd = conf.ipv6.udp.sock;
+		fds[nfds].events = POLLIN;
+		nfds++;
+	}
 
-static void event_off ( short evt )
-{
-    event &= (short) ~evt;
-
+	if (conf.ipv6.tcp.sock >= 0) {
+		fds[nfds].fd = conf.ipv6.tcp.sock;
+		fds[nfds].events = POLLIN|POLLOUT|POLLERR|POLLHUP|POLLNVAL;
+		nfds++;
+	}
 }
 
 static int wait_event( int timeout)
@@ -113,15 +116,23 @@ static int wait_event( int timeout)
 	if ( ret < 0 )
 		LOG_ERR("Error in poll:%d", errno);
     else {
-	    event |= fds[0].revents;
-	    if(fds[0].revents & POLLIN)
-	        LOG_INF("Event IN");
-		else if(fds[0].revents & POLLHUP)
-		    LOG_INF("Event HUP");
-		else if(fds[0].revents & POLLOUT)
-			LOG_INF("Event OUT");
-		else if(fds[0].revents & POLLERR)
-		    LOG_INF("Event ERR");
+		for ( int i=0; i<nfds; i++ )
+		{
+	    	if(fds[i].revents & POLLIN) {
+		    	LOG_INF("Event IN");
+				if (IS_ENABLED(CONFIG_NET_TCP) && (in_process == false)) {
+				in_process = true;
+
+				}
+
+	    	} else if(fds[i].revents & POLLHUP) {
+		      LOG_INF("Event HUP");
+	    	} else if(fds[i].revents & POLLOUT) {
+		      LOG_INF("Event OUT");
+	    	} else if(fds[i].revents & POLLERR) {
+		      LOG_INF("Event ERR");
+	    	}
+		}
 	}
 	return ret;
 }
@@ -131,34 +142,14 @@ static void wait(void)
 	/* Wait for event on any socket used. Once event occurs,
 	 * we'll check them all.
 	 */
-	if (poll(fds, nfds, K_FOREVER) < 0)
+	if (poll(fds, nfds, K_FOREVER) < 0) {
 		LOG_ERR("Error in poll:%d", errno);
-    else {
-		event |= fds[0].revents;
-/*
-	    if(fds[0].revents & POLLIN) {
-		      LOG_INF("Event IN");
-		  } else if(fds[0].revents & POLLHUP)
-		      LOG_INF("Event HUP");
-		  else if(fds[0].revents & POLLOUT) {
-		      LOG_INF("Event OUT");
-					event |= POLLOUT;
-			} else if(fds[0].revents & POLLERR) {
-		      LOG_INF("Event ERR");
-			}
-*/
 	}
-
-// FIXME: Shutdown not implemented
-//		zsock_shutdown(fds[1].fd,ZSOCK_SHUT_RDWR );
-
 }
 
 static void init_app(void)
 {
 	LOG_INF(APP_BANNER);
-
-#if 0
 
 #if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
 	int err = tls_credential_add(CA_CERTIFICATE_TAG,
@@ -171,12 +162,26 @@ static void init_app(void)
 #endif
 
 	init_vlan();
-#endif
+}
+
+bool test_if (void)
+{
+	struct net_if *iface = net_if_get_default();
+	if (atomic_test_bit(iface->if_dev->flags, NET_IF_UP)) {
+		LOG_INF("If is up");
+		return true;
+	}
+	else
+	{
+		LOG_INF("If is down");
+		return false;
+	}
+
 }
 
 void main(void)
 {
-    int ret;
+	int ret;
     u32_t flags=0;
 
 	init_app();
@@ -184,69 +189,53 @@ void main(void)
     flags |= NET_CONFIG_NEED_IPV6;
 	ret = net_config_init("echo",flags, K_SECONDS(10));
     if ( ret == 0)
-		LOG_INF("Net config ok");
+	    LOG_INF("Net config ok");
 	else
-		LOG_ERR("Net config err...");
+	    LOG_ERR("Net config err...");
+
 reconnect:
-	prepare_fds();
-
-	ret = wait_event(1000);
-	if ( ret < 0) {
-		LOG_ERR("Poll error...");
-		while(1);
- 	}
-    if ( ret == 0)
-		LOG_INF( "Config timeout expired");
-
- //   ret = wait_event(1000);
-
-	if (IS_ENABLED(CONFIG_NET_TCP) ) {
+    test_if();
+	if (IS_ENABLED(CONFIG_NET_TCP)) {
 		ret = start_tcp();
 		if (ret < 0) {
 			goto quit;
 		}
 	}
 
+	prepare_fds();
+
 	while (true) {
 
-	    if (IS_ENABLED(CONFIG_NET_TCP) && (event&POLLIN) ) {
-		    event_off(POLLIN);
+#if 0
+		if (IS_ENABLED(CONFIG_NET_TCP)) {
 			ret = process_tcp();
 			if (ret < 0) {
 				goto quit;
 			}
 		}
-
-		ret = wait_event(5000);
-		if ( ret < 0) {
-		    LOG_ERR("Poll error...");
-			while(1);
- 		}
-    	if ( ret == 0)
-				LOG_INF( "TCP timeout expired");
-
-		if ( event ) {
-		    if (event & POLLIN)
-              LOG_INF("Got event POLLIN");
-			else if ( event & POLLHUP)
-				LOG_INF("Got event POLLHUP");
-			else if ( event & POLLOUT)
-				LOG_INF("Got event POLLOUT");
-			else if (event & POLLERR)
-			    LOG_INF("Got event POLLERR");
+#endif
+		if ( in_process == true)
+		{
+		    if (IS_ENABLED(CONFIG_NET_TCP)) {
+			    ret = process_tcp();
+				in_process = false;
+			    if (ret < 0) {
+				    goto quit;
+			    }
+		    }
 
 		}
 
-	} // end true
+        wait_event(-1);
+	}
 
 quit:
 	LOG_INF("Stopping...");
 
 	if (IS_ENABLED(CONFIG_NET_TCP)) {
-		  stop_tcp();
+		stop_tcp();
 	}
     k_sleep(10000);
 	LOG_INF("Reconnecting...");
-	nfds = 0;
 	goto reconnect;
 }
