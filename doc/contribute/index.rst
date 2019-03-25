@@ -265,10 +265,10 @@ gitlint
 
 When you submit a pull request to the project, a series of checks are
 performed to verify your commit messages meet the requirements. The same step
-done during the CI process can be performed locally using the the `gitlint`
+done during the CI process can be performed locally using the the ``gitlint``
 command.
 
-Run `gitlint` locally in your tree and branch where your patches have been
+Run ``gitlint`` locally in your tree and branch where your patches have been
 committed:
 
 .. code-block:: console
@@ -540,6 +540,15 @@ workflow here:
    By force pushing your update, your original pull request will be updated
    with your changes so you won't need to resubmit the pull request.
 
+   .. note:: While amending commits and force pushing is a common review model
+      outside GitHub, and the one recommended by Zephyr, it's not the main
+      model supported by GitHub. Forced pushes can cause unexpected behavior,
+      such as not being able to use "View Changes" buttons except for the last
+      one - GitHub complains it can't find older commits. You're also not
+      always able to compare the latest reviewed version with the latest
+      submitted version. When rewriting history GitHub only guarantees access
+      to the latest version.
+
 #. If the CI run fails, you will need to make changes to your code in order
    to fix the issues and amend your commits by rebasing as described above.
    Additional information about the CI system can be found in
@@ -579,7 +588,7 @@ does and why it's needed. A change summary of ``"Fixes stuff"`` will be rejected
 
 .. warning::
    An empty change summary body is not permitted. Even for trivial changes, please
-   include a summary body in the commmit message.
+   include a summary body in the commit message.
 
 The description body of the commit message must include:
 

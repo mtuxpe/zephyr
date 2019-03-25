@@ -137,6 +137,7 @@
 /dts/arm/nordic/                          @ioannisg @carlescufi
 /dts/arm/nxp/                             @MaureenHelm
 /dts/bindings/can/                        @alexanderwachter
+/dts/bindings/*/nordic*                   @anangl
 /dts/bindings/*/nxp*                      @MaureenHelm
 /ext/fs/                                  @nashif @ramakrishnapallala
 /ext/hal/cmsis/                           @MaureenHelm @galak
@@ -185,6 +186,7 @@
 /include/kernel_version.h                 @andrewboie @andyross
 /include/led.h                            @Mani-Sadhasivam
 /include/led_strip.h                      @mbolivar
+/include/linker/app_smem*.ld              @andrewboie
 /include/linker/linker-defs.h             @andrewboie @andyross
 /include/linker/linker-tool-gcc.h         @andrewboie @andyross
 /include/linker/linker-tool.h             @andrewboie @andyross
@@ -211,6 +213,7 @@
 /lib/posix/                               @pfalcon
 /kernel/device.c                          @andrewboie @andyross @nashif
 /kernel/idle.c                            @andrewboie @andyross @nashif
+/samples/basic/servo_motor/*microbit*     @jhe
 /samples/bluetooth/                       @sjanc @jhedberg @Vudentz
 /samples/boards/intel_s1000_crb/          @sathishkuttan @rgundi @nashif
 /samples/display/                         @vanwinkeljan
@@ -225,6 +228,7 @@
 /samples/net/sockets/                     @jukkar @tbursztyka @pfalcon
 /samples/sensor/                          @bogdan-davidoaia
 /samples/subsys/usb/                      @jfischer-phytec-iot @finikorg
+/samples/subsys/power/                    @ramakrishnapallala @pizi-nordic
 /scripts/coccicheck                       @himanshujha199640 @JuliaLawall
 /scripts/coccinelle/                      @himanshujha199640 @JuliaLawall
 /scripts/elf_helper.py                    @andrewboie
@@ -258,6 +262,7 @@
 /subsys/net/lib/mqtt/                     @jukkar @tbursztyka
 /subsys/net/lib/coap/                     @rveerama1
 /subsys/net/lib/sockets/                  @jukkar @tbursztyka @pfalcon
+/subsys/power/                            @ramakrishnapallala @pizi-nordic
 /subsys/settings/                         @nvlsianpu
 /subsys/shell/                            @jarz-nordic @nordic-krch
 /subsys/storage/                          @nvlsianpu

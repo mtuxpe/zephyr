@@ -283,7 +283,6 @@ void z_time_slice(int ticks)
 {
 #ifdef CONFIG_SWAP_NONATOMIC
 	if (pending_current == _current) {
-		pending_current = NULL;
 		reset_time_slice();
 		return;
 	}
@@ -353,8 +352,8 @@ void z_remove_thread_from_ready_q(struct k_thread *thread)
 		if (z_is_thread_queued(thread)) {
 			_priq_run_remove(&_kernel.ready_q.runq, thread);
 			z_mark_thread_as_not_queued(thread);
-			update_cache(thread == _current);
 		}
+		update_cache(thread == _current);
 	}
 }
 
@@ -430,11 +429,21 @@ void z_thread_timeout(struct _timeout *to)
 
 int z_pend_curr_irqlock(u32_t key, _wait_q_t *wait_q, s32_t timeout)
 {
+	pend(_current, wait_q, timeout);
+
 #if defined(CONFIG_TIMESLICING) && defined(CONFIG_SWAP_NONATOMIC)
 	pending_current = _current;
-#endif
-	pend(_current, wait_q, timeout);
+
+	int ret = z_swap_irqlock(key);
+	LOCKED(&sched_spinlock) {
+		if (pending_current == _current) {
+			pending_current = NULL;
+		}
+	}
+	return ret;
+#else
 	return z_swap_irqlock(key);
+#endif
 }
 
 int z_pend_curr(struct k_spinlock *lock, k_spinlock_key_t key,
@@ -464,13 +473,6 @@ void z_unpend_thread(struct k_thread *thread)
 	(void)z_abort_thread_timeout(thread);
 }
 
-/* FIXME: this API is glitchy when used in SMP.  If the thread is
- * currently scheduled on the other CPU, it will silently set it's
- * priority but nothing will cause a reschedule until the next
- * interrupt.  An audit seems to show that all current usage is to set
- * priorities on either _current or a pended thread, though, so it's
- * fine for now.
- */
 void z_thread_priority_set(struct k_thread *thread, int prio)
 {
 	bool need_sched = 0;
@@ -488,6 +490,11 @@ void z_thread_priority_set(struct k_thread *thread, int prio)
 		}
 	}
 	sys_trace_thread_priority_set(thread);
+
+	if (IS_ENABLED(CONFIG_SMP) &&
+	    !IS_ENABLED(CONFIG_SCHED_IPI_SUPPORTED)) {
+		z_sched_ipi();
+	}
 
 	if (need_sched && _current->base.sched_locked == 0) {
 		z_reschedule_unlocked();
@@ -562,6 +569,18 @@ struct k_thread *z_get_next_ready_thread(void)
 }
 #endif
 
+/* Just a wrapper around _current = xxx with tracing */
+static inline void set_current(struct k_thread *new_thread)
+{
+#ifdef CONFIG_TRACING
+	sys_trace_thread_switched_out();
+#endif
+	_current = new_thread;
+#ifdef CONFIG_TRACING
+	sys_trace_thread_switched_in();
+#endif
+}
+
 #ifdef CONFIG_USE_SWITCH
 void *z_get_next_switch_handle(void *interrupted)
 {
@@ -574,25 +593,29 @@ void *z_get_next_switch_handle(void *interrupted)
 		if (_current != th) {
 			reset_time_slice();
 			_current_cpu->swap_ok = 0;
-#ifdef CONFIG_TRACING
-			sys_trace_thread_switched_out();
-#endif
-			_current = th;
-#ifdef CONFIG_TRACING
-			sys_trace_thread_switched_in();
+			set_current(th);
+#ifdef SPIN_VALIDATE
+			/* Changed _current!  Update the spinlock
+			 * bookeeping so the validation doesn't get
+			 * confused when the "wrong" thread tries to
+			 * release the lock.
+			 */
+			z_spin_lock_set_owner(&sched_spinlock);
 #endif
 		}
 	}
-
 #else
-#ifdef CONFIG_TRACING
-	sys_trace_thread_switched_out();
+	set_current(z_get_next_ready_thread());
 #endif
-	_current = z_get_next_ready_thread();
-#ifdef CONFIG_TRACING
-	sys_trace_thread_switched_in();
-#endif
-#endif
+
+	/* Some architectures don't have a working IPI, so the best we
+	 * can do there is check the abort status of the current
+	 * thread here on ISR exit
+	 */
+	if (IS_ENABLED(CONFIG_SMP) &&
+	    !IS_ENABLED(CONFIG_SCHED_IPI_SUPPORTED)) {
+		z_sched_ipi();
+	}
 
 	z_check_stack_sentinel();
 
@@ -872,12 +895,16 @@ void z_impl_k_yield(void)
 
 	if (!is_idle(_current)) {
 		LOCKED(&sched_spinlock) {
-			_priq_run_remove(&_kernel.ready_q.runq, _current);
-			_priq_run_add(&_kernel.ready_q.runq, _current);
+			if (!IS_ENABLED(CONFIG_SMP) ||
+			    z_is_thread_queued(_current)) {
+				_priq_run_remove(&_kernel.ready_q.runq,
+						 _current);
+				_priq_run_add(&_kernel.ready_q.runq,
+					      _current);
+			}
 			update_cache(1);
 		}
 	}
-
 	z_swap_unlocked();
 }
 
@@ -957,7 +984,60 @@ void z_impl_k_wakeup(k_tid_t thread)
 	if (!z_is_in_isr()) {
 		z_reschedule_unlocked();
 	}
+
+	if (IS_ENABLED(CONFIG_SMP) &&
+	    !IS_ENABLED(CONFIG_SCHED_IPI_SUPPORTED)) {
+		z_sched_ipi();
+	}
 }
+
+#ifdef CONFIG_SMP
+/* Called out of the scheduler interprocessor interrupt.  All it does
+ * is flag the current thread as dead if it needs to abort, so the ISR
+ * return into something else and the other thread which called
+ * k_thread_abort() can finish its work knowing the thing won't be
+ * rescheduled.
+ */
+void z_sched_ipi(void)
+{
+	LOCKED(&sched_spinlock) {
+		if (_current->base.thread_state & _THREAD_ABORTING) {
+			_current->base.thread_state |= _THREAD_DEAD;
+			_current_cpu->swap_ok = true;
+		}
+	}
+}
+
+void z_sched_abort(struct k_thread *thread)
+{
+	if (thread == _current) {
+		z_remove_thread_from_ready_q(thread);
+		return;
+	}
+
+	/* First broadcast an IPI to the other CPUs so they can stop
+	 * it locally.  Not all architectures support that, alas.  If
+	 * we don't have it, we need to wait for some other interrupt.
+	 */
+	thread->base.thread_state |= _THREAD_ABORTING;
+#ifdef CONFIG_SCHED_IPI_SUPPORTED
+	z_arch_sched_ipi();
+#endif
+
+	/* Wait for it to be flagged dead either by the CPU it was
+	 * running on or because we caught it idle in the queue
+	 */
+	while ((thread->base.thread_state & _THREAD_DEAD) == 0) {
+		LOCKED(&sched_spinlock) {
+			if (z_is_thread_queued(thread)) {
+				_current->base.thread_state |= _THREAD_DEAD;
+				_priq_run_remove(&_kernel.ready_q.runq, thread);
+				z_mark_thread_as_not_queued(thread);
+			}
+		}
+	}
+}
+#endif
 
 #ifdef CONFIG_USERSPACE
 Z_SYSCALL_HANDLER1_SIMPLE_VOID(k_wakeup, K_OBJ_THREAD, k_tid_t);
