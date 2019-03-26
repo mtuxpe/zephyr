@@ -175,7 +175,6 @@ static int process_tcp_proto(struct data *data)
 int start_tcp(void)
 {
 	int ret = 0;
-	struct sockaddr_in addr4;
 	struct sockaddr_in6 addr6;
 
 	if (IS_ENABLED(CONFIG_NET_IPV6)) {
@@ -192,18 +191,6 @@ int start_tcp(void)
 		}
 	}
 
-//	if (IS_ENABLED(CONFIG_NET_IPV4)) {
-//		addr4.sin_family = AF_INET;
-//		addr4.sin_port = htons(PEER_PORT);
-//		inet_pton(AF_INET, CONFIG_NET_CONFIG_PEER_IPV4_ADDR,
-//			  &addr4.sin_addr);
-//
-//		ret = start_tcp_proto(&conf.ipv4, (struct sockaddr *)&addr4,
-//				      sizeof(addr4));
-//		if (ret < 0) {
-//			return ret;
-//		}
-//	}
 
 	if (IS_ENABLED(CONFIG_NET_IPV6)) {
 		ret = send_tcp_data(&conf.ipv6);
@@ -211,10 +198,6 @@ int start_tcp(void)
 			return ret;
 		}
 	}
-
-//	if (IS_ENABLED(CONFIG_NET_IPV4)) {
-//		ret = send_tcp_data(&conf.ipv4);
-//	}
 
 	return ret;
 }

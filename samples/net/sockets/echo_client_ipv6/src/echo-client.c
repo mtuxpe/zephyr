@@ -73,8 +73,13 @@ struct configs conf = {
 	},
 };
 
-struct pollfd fds[4];
-int nfds;
+static struct pollfd fds[4];
+static int nfds;
+
+//#define USE_POLL_EVENT
+
+#ifdef USE_POLL_EVENT
+
 static volatile bool in_process = false;
 
 
@@ -132,6 +137,11 @@ static int wait_event( int timeout)
 	    	} else if(fds[i].revents & POLLERR) {
 		      LOG_INF("Event ERR");
 	    	}
+			else
+			{
+				LOG_INF("Got event %d",fds[i].revents);
+			}
+
 		}
 	}
 	return ret;
@@ -146,6 +156,33 @@ static void wait(void)
 		LOG_ERR("Error in poll:%d", errno);
 	}
 }
+
+#else
+static void prepare_fds(void)
+{
+	nfds = 0;
+	if (conf.ipv4.udp.sock >= 0) {
+		fds[nfds].fd = conf.ipv4.udp.sock;
+		nfds++;
+	}
+
+	if (conf.ipv4.tcp.sock >= 0) {
+		fds[nfds].fd = conf.ipv4.tcp.sock;
+		nfds++;
+	}
+
+	if (conf.ipv6.udp.sock >= 0) {
+		fds[nfds].fd = conf.ipv6.udp.sock;
+		nfds++;
+	}
+
+	if (conf.ipv6.tcp.sock >= 0) {
+		fds[nfds].fd = conf.ipv6.tcp.sock;
+		nfds++;
+	}
+}
+
+#endif  // poll event
 
 static void init_app(void)
 {
@@ -166,6 +203,10 @@ static void init_app(void)
 
 bool test_if (void)
 {
+	struct net_context *tcp_ctx;
+	struct in6_addr *curr_addr;
+	int ret;
+/*
 	struct net_if *iface = net_if_get_default();
 	if (atomic_test_bit(iface->if_dev->flags, NET_IF_UP)) {
 		LOG_INF("If is up");
@@ -176,7 +217,39 @@ bool test_if (void)
 		LOG_INF("If is down");
 		return false;
 	}
+*/
+/*
+struct in6_addr * (struct net_if *iface,
+				    enum net_addr_state addr_state);
 
+struct in6_addr *net_if_ipv6_get_ll_addr(enum net_addr_state state,
+					 struct net_if **iface);
+
+*/
+    struct net_if *iface = net_if_get_default();
+   curr_addr =  net_if_ipv6_get_ll(iface,  NET_ADDR_PREFERRED);
+	if ( curr_addr == NULL)
+		LOG_INF("IPV6 addr null");
+	curr_addr = net_if_ipv6_get_ll_addr( NET_ADDR_PREFERRED, &iface);
+	if ( curr_addr == NULL)
+		LOG_INF("IPV6 ll");
+
+/*
+    ret = net_context_get(AF_INET6, SOCK_STREAM, IPPROTO_TCP, &tcp_ctx);
+	if (ret  == 0 ) {
+	    LOG_INF("got context");
+//       ret = net_context_unref(tcp_ctx);
+        ret = net_context_put(tcp_ctx);
+		if ( ret < 0 )
+	        LOG_INF("Can't release context: %d",ret);
+		else {
+			LOG_INF("Release context ok");
+		}
+
+	} else {
+		LOG_INF("context < 0");
+	}
+*/
 }
 
 void main(void)
@@ -196,27 +269,24 @@ void main(void)
 reconnect:
     test_if();
 	if (IS_ENABLED(CONFIG_NET_TCP)) {
+		LOG_INF("Call start_tcp");
 		ret = start_tcp();
 		if (ret < 0) {
 			goto quit;
 		}
 	}
 
+
 	prepare_fds();
 
 	while (true) {
 
-#if 0
-		if (IS_ENABLED(CONFIG_NET_TCP)) {
-			ret = process_tcp();
-			if (ret < 0) {
-				goto quit;
-			}
-		}
-#endif
+#ifdef USE_POLL_EVENT
+        // avoid call process_tcp() twice
 		if ( in_process == true)
 		{
 		    if (IS_ENABLED(CONFIG_NET_TCP)) {
+				LOG_INF("Call process_tcp");
 			    ret = process_tcp();
 				in_process = false;
 			    if (ret < 0) {
@@ -225,8 +295,17 @@ reconnect:
 		    }
 
 		}
+		wait_event(-1);
+#else
+		if (IS_ENABLED(CONFIG_NET_TCP)) {
+			ret = process_tcp();
+			if (ret < 0) {
+				goto quit;
+			}
+		}
 
-        wait_event(-1);
+#endif
+
 	}
 
 quit:
