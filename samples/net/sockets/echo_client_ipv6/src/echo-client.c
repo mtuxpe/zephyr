@@ -76,7 +76,7 @@ struct configs conf = {
 static struct pollfd fds[4];
 static int nfds;
 
-//#define USE_POLL_EVENT
+#define USE_POLL_EVENT
 
 #ifdef USE_POLL_EVENT
 
@@ -126,7 +126,7 @@ static int wait_event( int timeout)
 	    	if(fds[i].revents & POLLIN) {
 		    	LOG_INF("Event IN");
 				if (IS_ENABLED(CONFIG_NET_TCP) && (in_process == false)) {
-				in_process = true;
+					in_process = true;
 
 				}
 
@@ -201,6 +201,22 @@ static void init_app(void)
 	init_vlan();
 }
 
+void release_context (void)
+{
+
+		struct net_context *tcp_ctx;
+		int ret;
+
+		ret = net_context_get(AF_INET6, SOCK_STREAM, IPPROTO_TCP, &tcp_ctx);
+		if (!tcp_ctx || !net_context_is_used(tcp_ctx)) {
+				LOG_INF("not connected");
+				return;
+		}
+		ret = net_context_put(tcp_ctx);
+		if ( ret < 0 )
+	      LOG_INF("Can't release context: %d",ret);
+}
+
 bool test_if (void)
 {
 	struct net_context *tcp_ctx;
@@ -226,48 +242,36 @@ struct in6_addr *net_if_ipv6_get_ll_addr(enum net_addr_state state,
 					 struct net_if **iface);
 
 */
-    struct net_if *iface = net_if_get_default();
-   curr_addr =  net_if_ipv6_get_ll(iface,  NET_ADDR_PREFERRED);
+/*
+	struct net_if *iface = net_if_get_default();
+	curr_addr =  net_if_ipv6_get_ll(iface,  NET_ADDR_PREFERRED);
 	if ( curr_addr == NULL)
 		LOG_INF("IPV6 addr null");
 	curr_addr = net_if_ipv6_get_ll_addr( NET_ADDR_PREFERRED, &iface);
 	if ( curr_addr == NULL)
 		LOG_INF("IPV6 ll");
 
-/*
-    ret = net_context_get(AF_INET6, SOCK_STREAM, IPPROTO_TCP, &tcp_ctx);
-	if (ret  == 0 ) {
-	    LOG_INF("got context");
-//       ret = net_context_unref(tcp_ctx);
-        ret = net_context_put(tcp_ctx);
-		if ( ret < 0 )
-	        LOG_INF("Can't release context: %d",ret);
-		else {
-			LOG_INF("Release context ok");
-		}
-
-	} else {
-		LOG_INF("context < 0");
-	}
 */
+
+
 }
 
 void main(void)
 {
 	int ret;
-    u32_t flags=0;
+	u32_t flags=0;
 
 	init_app();
 
-    flags |= NET_CONFIG_NEED_IPV6;
+	flags |= NET_CONFIG_NEED_IPV6;
 	ret = net_config_init("echo",flags, K_SECONDS(10));
-    if ( ret == 0)
-	    LOG_INF("Net config ok");
+	if ( ret == 0)
+		LOG_INF("Net config ok");
 	else
-	    LOG_ERR("Net config err...");
+		LOG_ERR("Net config err...");
 
 reconnect:
-    test_if();
+
 	if (IS_ENABLED(CONFIG_NET_TCP)) {
 		LOG_INF("Call start_tcp");
 		ret = start_tcp();
@@ -276,32 +280,32 @@ reconnect:
 		}
 	}
 
-
 	prepare_fds();
 
 	while (true) {
 
 #ifdef USE_POLL_EVENT
+
         // avoid call process_tcp() twice
 		if ( in_process == true)
 		{
-		    if (IS_ENABLED(CONFIG_NET_TCP)) {
-				LOG_INF("Call process_tcp");
-			    ret = process_tcp();
-				in_process = false;
-			    if (ret < 0) {
-				    goto quit;
-			    }
-		    }
+				if (IS_ENABLED(CONFIG_NET_TCP)) {
+						LOG_INF("Call process_tcp");
+						ret = process_tcp();
+						in_process = false;
+						if (ret < 0)
+							goto quit;
+				}
 
 		}
 		wait_event(-1);
+
 #else
+
 		if (IS_ENABLED(CONFIG_NET_TCP)) {
 			ret = process_tcp();
-			if (ret < 0) {
+			if (ret < 0)
 				goto quit;
-			}
 		}
 
 #endif
@@ -309,12 +313,13 @@ reconnect:
 	}
 
 quit:
-	LOG_INF("Stopping...");
+    LOG_INF("Stopping...");
 
-	if (IS_ENABLED(CONFIG_NET_TCP)) {
-		stop_tcp();
-	}
-    k_sleep(10000);
-	LOG_INF("Reconnecting...");
-	goto reconnect;
+    if (IS_ENABLED(CONFIG_NET_TCP)) {
+		    stop_tcp();
+	  }
+	  release_context();
+	  k_sleep(10000);
+	  LOG_INF("Reconnecting...");
+	  goto reconnect;
 }

@@ -164,7 +164,7 @@ static int process_tcp_proto(struct data *data)
 			LOG_INF("%s TCP: Exchanged %u packets", data->proto,
 				data->tcp.counter);
 		}
-        k_sleep(1000);
+		k_sleep(1000);
 		ret = send_tcp_data(data);
 		break;
 	} while (received > 0);
