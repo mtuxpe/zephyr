@@ -100,9 +100,8 @@ static int spi_sam_configure(struct device *dev,
 	regs->SPI_CSR[config->slave] = spi_csr;
 	regs->SPI_CR = SPI_CR_SPIEN; /* Enable SPI */
 
-	spi_context_cs_configure(&data->ctx);
-
 	data->ctx.config = config;
+	spi_context_cs_configure(&data->ctx);
 
 	return 0;
 }
@@ -401,9 +400,6 @@ static int spi_sam_transceive_sync(struct device *dev,
 				    const struct spi_buf_set *tx_bufs,
 				    const struct spi_buf_set *rx_bufs)
 {
-	struct spi_sam_data *data = dev->driver_data;
-
-	spi_context_lock(&data->ctx, false, NULL);
 	return spi_sam_transceive(dev, config, tx_bufs, rx_bufs);
 }
 
@@ -414,10 +410,8 @@ static int spi_sam_transceive_async(struct device *dev,
 				     const struct spi_buf_set *rx_bufs,
 				     struct k_poll_signal *async)
 {
-	struct spi_sam_data *data = dev->driver_data;
-
-	spi_context_lock(&data->ctx, true, async);
-	return spi_sam_transceive(dev, config, tx_bufs, rx_bufs);
+	/* TODO: implement asyc transceive */
+	return -ENOTSUP;
 }
 #endif /* CONFIG_SPI_ASYNC */
 

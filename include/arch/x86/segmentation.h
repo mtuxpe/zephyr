@@ -32,7 +32,7 @@ extern "C" {
  *    14      #PF         Page Fault
  *    17      #AC         Alignment Check
  */
-#define _EXC_ERROR_CODE_FAULTS	0x27d00
+#define _EXC_ERROR_CODE_FAULTS	0x27d00U
 
 
 /* NOTE: We currently do not have definitions for 16-bit segment, currently
@@ -392,8 +392,8 @@ static inline void z_sd_set_seg_offset(struct segment_descriptor *sd,
 				      u16_t segment_selector,
 				      u32_t offset)
 {
-	sd->offset_low = offset & 0xFFFF;
-	sd->offset_hi = offset >> 16;
+	sd->offset_low = offset & 0xFFFFU;
+	sd->offset_hi = offset >> 16U;
 	sd->segment_selector = segment_selector;
 	sd->always_0_0 = 0;
 }

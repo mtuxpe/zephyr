@@ -484,7 +484,7 @@ static int eth_tx(struct device *dev, struct net_pkt *pkt)
 	SMSC9220->TX_DATA_PORT = txcmd_a;
 	SMSC9220->TX_DATA_PORT = txcmd_b;
 
-	if (net_pkt_read_new(pkt, tx_buf, total_len)) {
+	if (net_pkt_read(pkt, tx_buf, total_len)) {
 		goto error;
 	}
 
@@ -543,7 +543,7 @@ static int smsc_read_rx_fifo(struct net_pkt *pkt, u32_t len)
 	do {
 		buf32 = SMSC9220->RX_DATA_PORT;
 
-		if (net_pkt_write_new(pkt, &buf32, sizeof(u32_t))) {
+		if (net_pkt_write(pkt, &buf32, sizeof(u32_t))) {
 			return -1;
 		}
 	} while (--len);

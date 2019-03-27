@@ -250,8 +250,8 @@ def main():
         swt = None
 
     for irq, flags, func, param in intlist["interrupts"]:
-        if (flags & ISR_FLAG_DIRECT):
-            if (param != 0):
+        if flags & ISR_FLAG_DIRECT:
+            if param != 0:
                 error("Direct irq %d declared, but has non-NULL parameter"
                         % irq)
             vt[irq - offset] = func
@@ -307,4 +307,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

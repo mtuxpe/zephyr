@@ -389,7 +389,7 @@ void arc_core_mpu_configure_thread(struct k_thread *thread)
 	_mpu_reset_dynamic_regions();
 #if defined(CONFIG_MPU_STACK_GUARD)
 #if defined(CONFIG_USERSPACE)
-	if ((thread->thread_base.user_options & K_USER) != 0) {
+	if ((thread->base.user_options & K_USER) != 0) {
 		/* the areas before and after the user stack of thread is
 		 * kernel only. These area can be used as stack guard.
 		 * -----------------------
@@ -594,7 +594,7 @@ int arc_core_mpu_buffer_validate(void *addr, size_t size, int write)
 	 */
 	r_index = _mpu_probe((u32_t)addr);
 	/*  match and the area is in one region */
-	if (r_index >= 0 && r_index == _mpu_probe((u32_t)addr + size)) {
+	if (r_index >= 0 && r_index == _mpu_probe((u32_t)addr + (size - 1))) {
 		if (_is_user_accessible_region(r_index, write)) {
 			return 0;
 		} else {

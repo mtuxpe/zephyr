@@ -103,9 +103,8 @@ elf_part_size_regex = re.compile(r'z_data_smem_(.*)_part_size')
 def find_obj_file_partitions(filename, partitions):
     with open(filename, 'rb') as f:
         full_lib = ELFFile( f)
-        if (not full_lib):
-            print("Error parsing file: ",filename)
-            os.exit(1)
+        if not full_lib:
+            sys.exit("Error parsing file: " + filename)
 
         sections = [x for x in full_lib.iter_sections()]
         for section in sections:

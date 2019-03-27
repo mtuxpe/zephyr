@@ -91,10 +91,10 @@ void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 * k_thread_create(). If K_THREAD_STACK_SIZEOF() is used, the
 	 * Guard size has already been take out of stackSize.
 	 */
-	stackEnd = pStackMem + stackSize - MPU_GUARD_ALIGN_AND_SIZE;
-#else
-	stackEnd = pStackMem + stackSize;
+	stackSize -= MPU_GUARD_ALIGN_AND_SIZE;
 #endif
+	stackEnd = pStackMem + stackSize;
+
 	struct __esf *pInitCtx;
 
 	_new_thread_init(thread, pStackMem, stackSize, priority,
@@ -123,6 +123,9 @@ void z_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	pInitCtx->a4 = (u32_t)parameter3;
 	pInitCtx->xpsr =
 		0x01000000UL; /* clear all, thumb bit is 1, even if RO */
+#ifdef CONFIG_FLOAT
+	pInitCtx->fpscr = (u32_t)0; /* clears FPU status/control register*/
+#endif
 
 	thread->callee_saved.psp = (u32_t)pInitCtx;
 	thread->arch.basepri = 0;
