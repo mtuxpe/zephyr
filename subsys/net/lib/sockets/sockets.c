@@ -116,9 +116,9 @@ int zsock_socket_internal(int family, int type, int proto)
 	 * context, it's not disposed of immediately - there's yet
 	 * closing handshake for stack to perform.
 	 */
-	if (proto == IPPROTO_TCP) {
-		net_context_ref(ctx);
-	}
+// FIXME:	if (proto == IPPROTO_TCP) {
+//		net_context_ref(ctx);
+//	}
 
 	z_finalize_fd(fd, ctx, (const struct fd_op_vtable *)&sock_fd_op_vtable);
 
@@ -408,7 +408,7 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 	 * context, it's not disposed of immediately - there's yet
 	 * closing handshake for stack to perform.
 	 */
-	net_context_ref(ctx);
+// FIXME:	net_context_ref(ctx);
 
 	NET_DBG("accept: ctx=%p, fd=%d", ctx, fd);
 

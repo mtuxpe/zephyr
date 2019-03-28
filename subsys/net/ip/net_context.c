@@ -382,6 +382,11 @@ int net_context_put(struct net_context *context)
 	context->recv_cb = NULL;
 	context->send_cb = NULL;
 
+//FIXME:
+	if (net_tcp_put(context) >= 0) {		/* Decrement refcount on user app's behalf */
+		goto unlock;	
+	}
+
 	/* Decrement refcount on user app's behalf */
 	net_context_unref(context);
 
