@@ -1,0 +1,77 @@
+Semtech LoRa-net
+######################
+
+Origin:
+    Semtech Lora-net repository
+    https://github.com/Lora-net/LoRaMac-node
+ 
+Version:
+    4.4.1
+
+Purpose:
+    Reference implementation of a LoRa network node
+ 
+Description:
+    This code component is used to add Zephyr support for LoRaWAN Specification.
+    To speed up the development process it is based on the Semtech LoRa-net.
+    The LoRaMAC layer is implemented according to LoRaWAN Specification v1.0.2.
+    All LoRaWAN devices implement at least the Class A. 
+    The LoRaWAN stack API documentation can be found at: http://stackforce.github.io/LoRaMac-doc/
+   
+    The following folders are imported:
+
+    LoRaMac-node/src/radio
+    LoRaMac-node/src/mac
+
+    LoRaWAN operates in the sub-gigahertz frequency bands and it's specification varies from region 
+    to region because of regulatory requirement.LoRaWAN Regions supported:
+
+    EU868 (EU 863-870MHz ISM Band)
+    US915 (US 902-928MHz ISM Band)
+    CN779 (China 779-787MHz ISM Band)
+    EU433 (EU 433MHz ISM Band)
+    AU915 (Australia 915-928MHz ISM Band)
+    CN470 (CN 470-510MHz Band)
+    AS923 (AS923MHz ISM Band)
+    KR923 (South Korea 920-923MHz ISM Band)
+    IN865 (India 865-867 MHz ISM Band)
+
+   The supported radios are:
+
+    SX1272
+    SX1276 
+    SX126x
+
+Dependencies:
+
+    This source code depends on ...
+
+URL:
+   
+   https://github.com/Lora-net/LoRaMac-node
+
+Maintained-by:
+   Semtech
+
+License:
+   BSD
+
+How to update
++++++++++++++
+
+  * git clone https://github.com/Lora-net/LoRaMac-node.git
+  * cd LoRaMac-node
+  * git checkout master
+  * Replace the necessary files in LoRaMac-node/src/radio and LoRaMac-node/src/mac folders
+  * Ensure that the CMakeLists and Kconfig files match the new version of the LoRaMac-node
+
+The following folders are used in this library:
+
++-------------------------+--------------------------------------------------------------------------------------------+
+| LoRa-Mac                | Zephyr                      | Comments                                                     |
++-------------------------+-----------------------------+--------------------------------------------------------------+
+| LoRaMac-node/src/radio  | ext/lib/lorawan/mac         | Contains LoRaMAC layer                                       |
++-------------------------+-----------------------------+--------------------------------------------------------------+
+| LoRaMac-node/src/mac    | ext/lib/lorawan/radio       | Contains LoRaMAC radios                                      |
++-------------------------+-----------------------------+--------------------------------------------------------------+
+
